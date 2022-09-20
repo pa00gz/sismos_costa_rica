@@ -1,0 +1,181 @@
+---
+title: "Poster"
+author:
+  - María José Guzmán
+  - Patrick Santamaría
+date: "19 de setiembre de 2022"
+always_allow_html: yes
+output:
+  rmdformats::downcute:
+    fig_width: 12
+    fig_height: 6
+    use_bookdown: true
+    number_sections: false
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(readxl)
+library(leaflet)
+library(janitor)
+library(leaflet.extras)
+library(gt)
+library(feather)
+```
+
+# Introducción
+ 
+Costa Rica por su posición geográfica, es bien sabido que tienen una actividad sísmica importante, y esto se debe a la convergencia de las placas Cocos y Caribe a lo largo de la costa Pacífica de el país. Estas características influyen en la ocurrencia de terremotos a lo largo de la zona de subducción y además debido al vulcanismo activo (Moya et al., 2020, pp. 2).
+
+Desde 1993 la red de acelerógrafos del Laboratorio de Ingeniería Sísmica (LIS) del Instituto de Investigaciones en Ingeniería de la Universidad de Costa Rica, ha registrado más de 1300 acelerogramas, correspondientes a 420 sismos sentidos, los cuales son causantes de daños severos en edificios, así como muertes y grandes pérdidas de recursos económicos para los habitantes de Costa Rica (Diaz & Serrano, 2007, pp. 27).
+
+El patrón de daños en los edificios está determinado por el factor sísmico y las condiciones ambientales donde se construye el edificio, y esta relación entre el factor sísmico y el efecto que produce puede estudiarse mediante funciones de atenuación, donde la función sirve como componente clave para estudiar la amenaza sísmica en un determinado lugar del espacio. Dicho esto, la evaluación del peligro sísmico y su relación con el daño infraestructural, se puede realizar utilizando el valor de aceleración en el suelo, o la aceleración máxima del suelo (PGA) (Irwansyah, 2013, pp. 2).
+
+Por lo anterior resulta importante realizar un análisis de los eventos sísmicos en Costa Rica a partir de los PGA de estos eventos, esto con el fin de determinar zonas de peligro sísmico para la infraestructura construida en dichos lugares y que sirvan como insumo para fortalecer las políticas constructivas en lugares con un mayor impacto sísmico de Costa Rica.
+
+# Contexto de los datos
+
+Los datos fueron tomados de la página del Laboratorio de Ingeniería Sísmica (LIS) del Instituto de Investigaciones en Ingeniería de la Universidad de Costa Rica y posee un total de 4199 acelerogramas de tres componentes, estos corresponden a 491 sismos registrados desde 1998 hasta 2021 y esta fuente de datos se actualiza constantemente con nuevos eventos sísmicos que dispara el Sistema de Monitoreo Acelerográfico (SMA).
+
+Para que un evento sísmico sea incluido en estos datos se calcula el PGA para los tres componentes de cada estación una vez que el SMA se activa utilizando toda la forma de ondad. Una vez que se cierra el SMA del evento, se seleccionan los registros que tienen al menos uno de los dos componentes de PGA horizontal mayor a 2 gals.
+
+# Analisis exploratorio
+
+## Lectura de datos
+
+```{r}
+# read_xlsx("datos/crsmdb_2021.xlsx") %>% 
+#   mutate(id_sismo = str_sub(Filename, 1, 12)) %>% 
+#   clean_names() %>% 
+#   mutate(across(.cols = c(earthquake_lat, earthquake_lon,
+#                           depth_km, magnitude, station_lat, station_lon,
+#                           station_elevation_m, epicentral_distance_km,
+#                           hypocentral_distance_km, joyner_boore_distance_km,
+#                           rupture_distance_km, azimuth_epicentre_station,
+#                           delta_t, pga_n00e, pga_z, pga_n90e, min_filt_freq,
+#                           max_filt_freq, number_of_points),
+#                 .fns =  ~as.numeric(.x)),
+#          date = as.Date(date)) %>% 
+#   write_feather("datos/eventos_sismicos.feather")
+
+sismos <- read_feather("datos/eventos_sismicos.feather")
+
+# Son 491 sismos unicos
+sismos_unicos <- sismos %>% 
+  distinct(id_sismo, earthquake_lat, earthquake_lon,
+           depth_km, magnitude, date) %>% 
+  st_as_sf(coords = c("earthquake_lon", "earthquake_lat"),
+           crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+```
+
+## Resumenes de datos
+
+El siguiente gráfico muestra la ocurrencia de sismos entre 1998 y 2021 según el año de ocurrencia:
+
+```{r}
+sismos_unicos %>% 
+  st_drop_geometry() %>% 
+  group_by(anio = year(date)) %>% 
+  count() %>% 
+  ungroup() %>% 
+  ggplot(aes(x = anio, y = n, label = n)) +
+  geom_line(color = "#1A7C05") +
+  geom_point(color = "#24B804") +
+  geom_text(hjust = 0.5, vjust = -0.5, size = 3.8) +
+  labs(x = "Año de ocurrencia", y = "Cantidad de eventos sísmicos",
+       title = "Cantidad de eventos sísmicos registrados según año de ocurrencia") +
+  theme_minimal()
+```
+
+Cada evento sismico es captado por más de una estación y por eso en el conjunto de datos se observa que para un mismo sismo hay muchos registros, a continuación se muestra el top 10 de los sismos que se captaron por más estaciones sísmicas.
+
+```{r}
+sismos %>% 
+  group_by(id_sismo) %>% 
+  summarise(cantidad_estaciones = n(),
+            fecha = unique(date),
+            magnitud = unique(magnitude) %>% 
+              as.numeric(),
+            profundidad = unique(depth_km) %>% 
+              as.numeric()) %>% 
+  arrange(desc(cantidad_estaciones)) %>% 
+  ungroup() %>% 
+  slice(1:7) %>% 
+  set_names(c("Identificador del sismo", "Cantidad de estaciones", 
+              "Fecha del sismo","Magnitud", "Profundidad en KM")) %>% 
+  gt() %>% 
+  fmt_number(
+    columns = c(4, 5),
+    decimals = 1
+  ) %>% 
+  tab_header(
+    title = "Top 10 de los sismos que se captaron con más estaciones sísmicas"
+  )
+```
+
+Finalemnte se muestran los descriptivos de las variables de los sismos que no cambian de estación a estación.
+
+```{r}
+sismos_unicos %>% 
+  st_drop_geometry() %>% 
+  summarise(variable = "Profundidad en KM",
+            media = mean(depth_km) %>% 
+              round(1),
+            mediana = median(depth_km),
+            min = min(depth_km),
+            max = max(depth_km)) %>% 
+  bind_rows(sismos %>% 
+  summarise(variable = "Magnitud (Mw)",
+            media = mean(magnitude) %>% 
+              round(1),
+            mediana = median(magnitude),
+            min = min(magnitude),
+            max = max(magnitude))) %>% 
+  set_names(c("Variable", "Promedio", "Mediana", "Mínimo",
+              "Máximo")) %>% 
+  gt() %>% 
+  tab_header(
+    title = "Resumen de variables únicas para los eventos sísmicos"
+  )
+```
+
+## Visualizacion de puntos
+
+Inicialmente se muestra la distribución de puntos en el mapa de Costa Rica
+
+```{r}
+sismos_unicos %>% 
+  leaflet() %>%
+  addTiles() %>%
+  setView(lat = 10, lng = -84, zoom = 7) %>% 
+  addCircleMarkers(
+    radius = 2,
+    color = "#EF6C06")
+```
+
+A continuación se presenta un mapa de calor de los 491 sismos en donde la intensidad del calor está definida por la magnitud del sismo
+
+```{r}
+sismos_unicos %>% 
+  leaflet() %>%
+  addTiles() %>%
+  setView(lat = 10, lng = -84, zoom = 7) %>% 
+  addHeatmap(radius = 6,
+             intensity = ~ magnitude,
+             cellSize = 1) 
+```
+
+# Referencias
+
+Díaz, V. S., & Serrano, C. Q. (2007). Caracterización de los registros acelerográficos obtenidos en el laboratorio de ingeniería sísmica de la Universidad de Costa Rica. Ingeniería, 17(1), 27-41.
+
+Irwansyah, E., Winarko, E., Rasjid, Z. E., & Bekti, R. D. (2013). Earthquake hazard zonation using peak ground acceleration (PGA) approach. In Journal of Physics: Conference Series (Vol. 423, No. 1, p. 012067). IOP Publishing.
+
+Moya,F. A., Pinzón, L. A., Schmidt, D. V., Hidalgo, L. D. A., & Pujades, L. G. (2020). A strong‐motion database of Costa Rica: 20 Yr of Digital Records. Seismological Research Letters, 91(6), 3407-3416.
+
+
