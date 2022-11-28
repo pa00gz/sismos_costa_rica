@@ -42,7 +42,7 @@ Por lo anterior resulta importante realizar un análisis de los eventos sísmico
 
 Los datos fueron tomados de la página del Laboratorio de Ingeniería Sísmica (LIS) del Instituto de Investigaciones en Ingeniería de la Universidad de Costa Rica y posee un total de 4199 acelerogramas de tres componentes, estos corresponden a 491 sismos registrados desde 1998 hasta 2021 y esta fuente de datos se actualiza constantemente con nuevos eventos sísmicos que dispara el Sistema de Monitoreo Acelerográfico (SMA).
 
-Para que un evento sísmico sea incluido en estos datos se calcula el PGA para los tres componentes de cada estación una vez que el SMA se activa utilizando toda la forma de ondad. Una vez que se cierra el SMA del evento, se seleccionan los registros que tienen al menos uno de los dos componentes de PGA horizontal mayor a 2 gals.
+Para que un evento sísmico sea incluido en estos datos se calcula el PGA para los tres componentes de cada estación una vez que el SMA se activa utilizando toda la forma de onda. Una vez que se cierra el SMA del evento, se seleccionan los registros que tienen al menos uno de los dos componentes de PGA horizontal mayor a 2 gals.
 
 # Analisis exploratorio
 
@@ -84,8 +84,8 @@ sismos_unicos %>%
   count() %>% 
   ungroup() %>% 
   ggplot(aes(x = anio, y = n, label = n)) +
-  geom_line(color = "#1A7C05") +
-  geom_point(color = "#24B804") +
+  geom_line(color = "#FC2424") +
+  geom_point(color = "#FC2424") +
   geom_text(hjust = 0.5, vjust = -0.5, size = 3.8) +
   labs(x = "Año de ocurrencia", y = "Cantidad de eventos sísmicos",
        title = "Cantidad de eventos sísmicos registrados según año de ocurrencia") +
