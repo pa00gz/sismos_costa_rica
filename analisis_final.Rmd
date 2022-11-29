@@ -219,15 +219,17 @@ grafico <- k %>%
   pivot_longer(1:2, names_to = "var", values_to = "pga") %>% 
   mutate(var = case_when(
     var == "sample" ~ "Promedio PGA",
-    var == "kriging" ~ "Kriging") %>% 
-    factor(levels = c("Promedio PGA", "Kriging"),
+    var == "kriging" ~ "PGA Kriging") %>% 
+    factor(levels = c("Promedio PGA", "PGA Kriging"),
            ordered = TRUE))
 
 
 ggplot() + 
   geom_sf(data = grafico, mapping = aes(fill = pga)) + 
   facet_wrap(~var) +
-  scale_fill_gradientn(colors = sf.colors(20))
+  scale_fill_gradientn(colors = sf.colors(20)) + 
+  labs(fill = "PGA") +
+  theme_minimal()
 ```
 
 Y para ver el error estándar (desviación estándar) del PGA haciendo kriging en los cantones:
@@ -246,16 +248,17 @@ grafico_se <- k %>%
   pivot_longer(1:2, names_to = "var", 
                values_to = "Standard_error") %>% 
   mutate(var = case_when(
-    var == "sample" ~ "DE PGA",
-    var == "kriging" ~ "Kriging") %>% 
-    factor(levels = c("DE PGA", "Kriging"),
+    var == "sample" ~ "Error estándar PGA",
+    var == "kriging" ~ "Error estándar Kriging") %>% 
+    factor(levels = c("Error estándar PGA", "Error estándar Kriging"),
            ordered = TRUE))
 
 ggplot() +
   geom_sf(data = grafico_se, mapping = aes(fill = Standard_error)) +
   facet_wrap(~var, as.table = FALSE) + 
   scale_fill_gradientn(colors = sf.colors(20)) +
-  labs(fill = "Error estándar PGA")
+  labs(fill = "Error estándar PGA") +
+  theme_minimal()
 ```
 
 
