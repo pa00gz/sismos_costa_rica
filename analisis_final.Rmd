@@ -135,12 +135,22 @@ sismos_tierra %>%
   slice(1:10) 
 ```
 
+## Cantidad de sismos por zona sismica
+
 ```{r}
-# puntos <- sismos_tierra %>% 
-#   st_transform(CRS("+init=epsg:32630")) %>% 
-#   st_geometry() %>% 
-#   as.ppp()
-# fryplot(puntos)
+sismos_tierra %>% 
+  st_drop_geometry() %>% 
+  group_by(zona = zona) %>% 
+  count() %>% 
+  ungroup() %>% 
+  ggplot(aes(x = zona, y = n, label = n))+
+  labs(y = "Cantidad de sismos", x = "Zona sísmica") +
+  geom_bar(position = "dodge",
+           stat="identity",
+           fill = "#66038F")+
+  geom_text(aes(label=zona), vjust=0, color="black", size = 5)+
+  theme_minimal()
+
 ```
 
 # Interpolación
@@ -171,10 +181,65 @@ ggplot() +
 Ahora utilizando kriging con varioagramas. Hacemos el variograma y lo graficamos:
 
 ```{r}
-v <- variogram(pga ~ 1, sismos_tierra)
-plot(v, plot.numbers = TRUE, xlab = "distance h [m]",
-     ylab = expression(gamma(h)),
-     xlim = c(0, 1.055 * max(v$dist)))
+v <- variogram(pga ~ 1, sismos_tierra, cutoff  = 90, width = 5)
+ggplot(NULL, aes(x = v$dist, y = v$gamma, label = v$np)) + 
+  geom_point(color = "#9809CA") +
+  geom_text(hjust = 0.5, vjust = -0.3) +
+  xlim(c(0, 1.055 * max(v$dist))) +
+  labs(x = "Distancia", y = "Correlación espacial") +
+  theme_minimal()
+```
+
+Seguidamente hacemos el variograma por sismos a ver si vemos similitudes en provincias y/o cantones en las distintas estaciones, solo para sismos con mas de 10 mediciones de PGA, es decir, con mas de 10 estaciones:
+
+```{r}
+sismos_variograma <- read_feather("datos/eventos_sismicos.feather") %>% 
+  st_as_sf(coords = c("earthquake_lon", "earthquake_lat"),
+           crs = st_crs(cantones)) %>% 
+  st_intersection(cantones) %>% 
+  st_drop_geometry() %>% 
+  group_by(id_sismo, date) %>% 
+  count() %>% 
+  arrange(desc(n)) %>% 
+  ungroup() %>% 
+  filter(n >= 10) %>% 
+  arrange(date) %>% 
+  pull(id_sismo)
+  
+sismos_tierra_estacion <- read_feather("datos/eventos_sismicos.feather") %>% 
+  mutate(pga = sqrt(((pga_n00e) ^ 2 + (pga_n90e) ^ 2) / (2))) %>% 
+  filter(id_sismo %in% c(sismos_variograma)) %>% 
+  st_as_sf(coords = c("station_lon", "station_lat"),
+           crs = st_crs(cantones)) 
+
+datos_variograma <- sismos_tierra_estacion %>% 
+  group_split(id_sismo) %>% 
+  map_dfr(.f = function(sismo) {
+
+    var <- variogram(pga ~ 1, sismo)
+    tibble(dist = var$dist,
+           gamma = var$gamma,
+           label = var$np,
+           id_sismo = sismo %>% 
+             st_drop_geometry() %>% 
+             distinct(id_sismo) %>% 
+             pull())
+  })
+
+datos_variograma %>% 
+  left_join(sismos_tierra %>% 
+              select(id_sismo, NOM_PROV, NOM_CANT_1) %>% 
+              st_drop_geometry(), by = "id_sismo") %>% 
+  mutate(prov_cant = paste(NOM_PROV, "-", NOM_CANT_1)) %>% 
+  ggplot(aes(x = dist, y = gamma, color = NOM_PROV)) + 
+  geom_point() +
+  labs(x = "Distancia", y = "Correlación espacial") +
+  scale_color_manual(values = c("#C1BF05", "#1209A0", "#039C2F",
+                                "#F43B12", "#0EC105", "#0997A0",  "#EA0F62")) +
+  facet_wrap(prov_cant~id_sismo, scales = "free") + 
+  theme(legend.position = "none")
+
+# noviembre de 2004 es el sismo mas viejo que tiene mas de 10 estaciones que lo miden
 ```
 
 Ajustamos el variograma y hacemos la interpolación usando kriging:
